@@ -54,7 +54,6 @@ module FbaFeeCalculator
     end
 
     def calculate_amazon_referral_fee
-      puts PERCENTAGE_FEES.inspect
       pct_fee = (PERCENTAGE_FEES[@category].to_f / 100) * @price
       pct_fee = (pct_fee * 100).ceil.to_f / 100
       min_fee = MINIMUM_FEES[@category].to_f
@@ -114,7 +113,21 @@ module FbaFeeCalculator
     end
 
     def calculate_monthly_storage
-      @monthly_storage = 0.06
+      # 30 day storage
+      # jan - sep: .51 / cubic foot
+      # oct - dec: .68 / cubic foot
+      @monthly_storage = 0.00
+
+      current_month = Time.now.utc.month
+      cubic_feet = (@dimensions[0].to_f / 12) * (@dimensions[1].to_f / 12) * (@dimensions[2].to_f / 12)
+
+      if current_month <= 9
+        @monthly_storage = 0.51 * cubic_feet
+      else
+        @monthly_storage = 0.68 * cubic_feet
+      end
+
+      @monthly_storage = @monthly_storage.round(2)
     end
 
     def calculate_fulfillment_cost_subtotal

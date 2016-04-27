@@ -4,6 +4,11 @@ Welcome to your new gem! In this directory, you'll find the files you need to be
 
 TODO: Delete this and the text above, and describe your gem
 
+https://sellercentral.amazon.com/hz/fba/profitabilitycalculator/index
+https://github.com/hamptus/fbacalculator/blob/master/fbacalculator%2Ffbacalculator.py
+https://github.com/MattJGlick/amazon_fba_fee_calculator/blob/master/index.js
+
+
 ## Installation
 
 Add this line to your application's Gemfile:
