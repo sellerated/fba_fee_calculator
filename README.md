@@ -1,13 +1,10 @@
-# FbaFeeCalculator
+# FBA Fee Calculator
 
-Welcome to your new gem! In this directory, you'll find the files you need to be able to package up your Ruby library into a gem. Put your Ruby code in the file `lib/fba_fee_calculator`. To experiment with that code, run `bin/console` for an interactive prompt.
+[![Gem Version](https://badge.fury.io/rb/fba_fee_calculator.svg)](https://badge.fury.io/rb/fba_fee_calculator)
 
-TODO: Delete this and the text above, and describe your gem
+This gem provides most of the information provided by Amazon's [FBA Profitability Calculator](https://sellercentral.amazon.com/hz/fba/profitabilitycalculator/index)
 
-https://sellercentral.amazon.com/hz/fba/profitabilitycalculator/index
-https://github.com/hamptus/fbacalculator/blob/master/fbacalculator%2Ffbacalculator.py
-https://github.com/MattJGlick/amazon_fba_fee_calculator/blob/master/index.js
-
+Inspired by [hamptus](https://github.com/hamptus/fbacalculator)
 
 ## Installation
 
@@ -27,7 +24,27 @@ Or install it yourself as:
 
 ## Usage
 
-TODO: Write usage instructions here
+```ruby
+results = FbaFeeCalculator.calculate(
+  price: 29.99,
+  category: "Outdoors",
+  weight: 1.3, # lbs
+  dimensions: [4.3, 5.7, 8.3] # inches
+)
+
+results.size_category             # => "Standard"
+results.size_tier                 # => "LRG_STND"
+results.revenue_subtotal          # => 29.99
+results.amazon_referral_fee       # => 4.50
+results.variable_closing_fee      # => 0.00
+results.order_handling            # => 1.00
+results.pick_and_pack             # => 1.06
+results.weight_handling           # => 1.95
+results.monthly_storage           # => 0.06
+results.fulfillment_cost_subtotal # => 4.07
+results.cost_subtotal             # => -8.57
+results.margin_impact             # => 21.42
+```
 
 ## Development
 
@@ -37,5 +54,5 @@ To install this gem onto your local machine, run `bundle exec rake install`. To 
 
 ## Contributing
 
-Bug reports and pull requests are welcome on GitHub at https://github.com/[USERNAME]/fba_fee_calculator.
+Bug reports and pull requests are welcome on GitHub at https://github.com/sellerated/fba_fee_calculator.
 
