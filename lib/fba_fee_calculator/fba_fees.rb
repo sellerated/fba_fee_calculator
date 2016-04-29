@@ -2,187 +2,182 @@ require "active_model"
 
 module FbaFeeCalculator
   class FbaFees
-    include ::ActiveModel::Model
-    include FeeCategories
+    include ::FbaFeeCalculator::FeeConstants
 
-    attr_accessor :price, :category, :weight, :dimensions, :revenue_subtotal,
-                  :amazon_referral_fee, :variable_closing_fee, :order_handling,
-                  :pick_and_pack, :weight_handling, :monthly_storage,
-                  :fulfillment_cost_subtotal, :cost_subtotal, :margin_impact,
-                  :size
+    def is_media?(category)
+      VARIABLE_CLOSING_FEES.keys.include? category
+    end
 
-    validates :price, numericality: { greater_than: 0 }
-    validates :category, inclusion: { in: PERCENTAGE_FEES.keys }
-    validates :weight, numericality: { greater_than: 0 }
-    validate :valid_dimensions
+    # https://www.amazon.com/gp/help/customer/display.html?nodeId=201119390
+    def get_size_tier(size_category, weight, dimensions, is_media = false)
+      if size_category == "Standard"
+        fee_weight = is_media ? (14.to_f / 16.to_f) : (12.to_f / 16.to_f)
+        if [ (fee_weight > weight),
+             (dimensions.max <= 15),
+             (dimensions.min <= 0.75),
+             (median(dimensions) <= 12) ].all?
+          return "SML_STND"
+        else
+          return "LRG_STND"
+        end
+      else
+        girth_length = get_girth_length(dimensions)
+        if [ (girth_length > 165),
+             (weight > 150),
+             (dimensions.max > 108) ].any?
+          return "SPL_OVER"
+        elsif girth_length > 130
+          return "LRG_OVER"
+        elsif [ (weight > 70),
+                (dimensions.max > 60),
+                (median(dimensions) <= 30) ].any?
+          reurn "MED_OVER"
+        else
+          return "SML_OVER"
+        end
+      end
+    end
 
-    CONSTRAINTS = {
-      inbound_shipping_per_pound: 0.50,
-      max_large_standard_weight: 20,
-      max_large_standard_dimensions: [18, 14, 8],
-      max_small_standard_media_weight: 0.875,
-      max_small_standard_non_media_weight: 0.75,
-      max_small_standard_dimensions: [15, 12, 0.75],
-      max_small_oversize_weight: 70,
-      max_small_oversize_dimensions: [60, 30]
-    }
+    def get_pick_and_pack(size_tier)
+      return 0 unless PICK_PACK.keys.include?(size_tier)
+      PICK_PACK[size_tier]
+    end
 
-    def calculate!
-      return unless valid?
+    def get_variable_closing_fee(category, is_media = false)
+      return VARIABLE_CLOSING_FEES[category].to_f if is_media
+      0.0
+    end
 
-      calculate_size
-      calculate_revenue_subtotal
-      calculate_amazon_referral_fee
-      calulate_variable_closing_fee
-      calculate_order_handling
-      calculate_pick_and_pack
-      calculate_weight_handling
-      calculate_monthly_storage
-      calculate_fulfillment_cost_subtotal
-      calculate_cost_subtotal
-      calculate_margin_impact
+    def get_amazon_referral_fee(category, price)
+      pct_fee = (PERCENTAGE_FEES[category].to_f / 100) * price
+      pct_fee = (pct_fee * 100).ceil.to_f / 100
+      min_fee = MINIMUM_FEES[category].to_f
+      [pct_fee, min_fee].max
+    end
+
+    def get_outbound_shipping_weight(size_tier, weight, packaging_weight, dimensional_weight)
+      if ["SML_STND", "LRG_STND"].include? size_tier
+        if weight <= 1
+          return weight + packaging_weight
+        else
+          return [weight, dimensional_weight].max + packaging_weight
+        end
+      elsif size_tier == "SPL_OVER"
+        return weight + packaging_weight
+      else
+        return [weight, dimensional_weight].max + packaging_weight
+      end
+    end
+
+    def get_weight_handling(size_tier, outbound_shipping_weight, is_media = false)
+      weight = outbound_shipping_weight.ceil
+
+      case size_tier
+        when "SML_STND"
+          return 0.5
+        when "LRG_STND"
+          if is_media
+            return 0.85 if weight <= 1
+            return 1.24 if weight <= 2
+            return 1.24 + (weight - 2) * 0.41
+          else
+            return 0.96 if weight <= 1
+            return 1.95 if weight <= 2
+            return 1.95 + (weight - 2) * 0.39
+          end
+        when "SML_OVER"
+          return 2.06 if weight <= 2
+          return 2.06 + (weight - 2) * 0.39
+        when "MED_OVER"
+          return 2.73 if weight <= 2
+          return 2.73 + (weight - 2) * 0.39
+        when "LRG_OVER"
+          return 63.98 if weight <= 90
+          return 63.98 + (weight - 90) * 0.80
+        when "SPL_OVER"
+          return 124.58 if weight <= 90
+          return 124.58 + (weight - 90) * 0.92
+      end
+    end
+
+    # https://www.amazon.com/gp/help/customer/display.html/?nodeId=201119410
+    def get_order_handling(size_category, price, is_media = false)
+      if !is_media && size_category == "Standard" && price < 300
+        return 1
+      end
+      return 0
+    end
+
+    # January - September
+    #   Standard - $0.54 per cubic foot
+    #   Oversize - $0.43 per cubic foot
+    # October - December
+    #   Standard - $0.72 per cubic foot
+    #   Oversize - $0.57 per cubic foot
+    #
+    # See http://www.amazon.com/gp/help/customer/display.html?nodeId=200627230
+    def get_monthly_storage(size_category, cubic_feet)
+      monthly_storage = 0
+      current_month = Time.now.utc.month
+
+      if current_month <= 9
+        if size_category == "Standard"
+          monthly_storage = 0.54 * cubic_feet
+        else
+          monthly_storage = 0.43 * cubic_feet
+        end
+      else
+        if size_category == "Standard"
+          monthly_storage = 0.72 * cubic_feet
+        else
+          monthly_storage = 0.57 * cubic_feet
+        end
+      end
+
+      monthly_storage.round(2)
+    end
+
+    # http://www.amazon.com/gp/help/customer/display.html?nodeId=201119390
+    def get_girth_and_length(dimensions)
+      (dimensions.max + (median(dimensions) * 2) + (dimensions.min * 2)).round(1)
+    end
+
+    # https://www.amazon.com/gp/help/customer/display.html?nodeId=201119390
+    def get_standard_or_oversize(dimensions, weight)
+      if [ (weight > 20),
+           (dimensions.max > 18),
+           (dimensions.min > 8),
+           (median(dimensions) > 14) ].any?
+        "Oversize"
+      else
+        "Standard"
+      end
+    end
+
+    def get_dimensional_weight(dimensions)
+      (dimensions.inject(:*).to_f / 166).round(2)
+    end
+
+    def get_cubic_feet(dimensions)
+      (dimensions.inject(:*).to_f / 1728).round(3)
+    end
+
+    # http://www.amazon.com/gp/help/customer/display.html/?nodeId=201119410#calc
+    def get_packaging_weight(size_category, is_media)
+      return 0.125 if is_media
+      if size_category == "Standard"
+        return 0.25
+      else
+        return 1.0
+      end
     end
 
     private
 
-    def is_media?
-      VARIABLE_CLOSING_FEES.keys.include? @category
-    end
-
-    def calculate_revenue_subtotal
-      @revenue_subtotal = @price
-    end
-
-    def calculate_amazon_referral_fee
-      pct_fee = (PERCENTAGE_FEES[@category].to_f / 100) * @price
-      pct_fee = (pct_fee * 100).ceil.to_f / 100
-      min_fee = MINIMUM_FEES[@category].to_f
-      @amazon_referral_fee = [pct_fee, min_fee].max
-    end
-
-    def calulate_variable_closing_fee
-      @variable_closing_fee = 0.00
-      if is_media?
-        @variable_closing_fee = VARIABLE_CLOSING_FEES[@category].to_f
-      end
-    end
-
-    def calculate_order_handling
-      @order_handling = 0.00
-      if !is_media? && ["Small Standard", "Large Standard"].include?(@size)
-        @order_handling = 1.00
-      end
-    end
-
-    def calculate_pick_and_pack
-      @pick_and_pack = 0.00
-      if ["Small Standard", "Large Standard"].include? @size
-        @pick_and_pack = 1.06
-      elsif @size == "Small Oversize"
-        @pick_and_pack = 4.05
-      end
-    end
-
-    def calculate_weight_handling
-      @weight_handling = 0.00
-
-      puts "WEIGHT: #{@weight}"
-      puts (@weight - 2).round * 0.39
-
-      if @size == "Small Standard"
-        @weight_handling = 0.50
-      elsif @size == "Large Standard"
-        if @weight < 1
-          @weight_handling = 0.63
-        elsif @weight < 2
-          if is_media?
-            @weight_handling = 0.88
-          else
-            @weight_handling = 1.59
-          end
-        else
-          if is_media?
-            @weight_handling = 0.88 + (@weight - 2).round * 0.41
-          else
-            @weight_handling = 1.59 + (@weight - 2).round * 0.39
-          end
-        end
-      elsif @size == "Large Standard"
-        @weight_handling = 1.59 + (@weight - 2).round * 0.39
-      end
-    end
-
-    def calculate_monthly_storage
-      # 30 day storage
-      # jan - sep: .51 / cubic foot
-      # oct - dec: .68 / cubic foot
-      @monthly_storage = 0.00
-
-      current_month = Time.now.utc.month
-      cubic_feet = (@dimensions[0].to_f / 12) * (@dimensions[1].to_f / 12) * (@dimensions[2].to_f / 12)
-
-      if current_month <= 9
-        @monthly_storage = 0.51 * cubic_feet
-      else
-        @monthly_storage = 0.68 * cubic_feet
-      end
-
-      @monthly_storage = @monthly_storage.round(2)
-    end
-
-    def calculate_fulfillment_cost_subtotal
-      @fulfillment_cost_subtotal = 4.07
-    end
-
-    def calculate_cost_subtotal
-      @cost_subtotal = -8.57
-    end
-
-    def calculate_margin_impact
-      @margin_impact = 21.42
-    end
-
-    def valid_dimensions
-      errs = []
-      if dimensions.length != 3
-        errs << "must have 3 parts (width, height, depth)"
-      end
-
-      dimensions.each do |dimension|
-        if dimension.to_f <= 0
-          errs << "must contain all positive, numeric values"
-        end
-      end
-
-      errs.uniq.each do |err|
-        errors.add(:dimensions, err)
-      end
-    end
-
-    # see https://www.amazon.com/gp/help/customer/display.html?nodeId=201119390
-    def calculate_size
-      @size = "Small Standard"
-
-      # does it exceed the max dimensions for small?
-      @dimensions.sort.reverse.each_with_index do |dimension, index|
-        if (
-          (dimension > CONSTRAINTS[:max_small_standard_dimensions][index]) ||
-          (is_media? && @weight > CONSTRAINTS[:max_small_standard_media_weight]) ||
-          (@weight > CONSTRAINTS[:max_small_standard_non_media_weight])
-        )
-          @size = "Large Standard"
-        end
-      end
-
-      # if its not small, is it large?
-      @dimensions.sort.reverse.each_with_index do |dimension, index|
-        if (
-          (dimension > CONSTRAINTS[:max_large_standard_dimensions][index]) ||
-          (@weight > CONSTRAINTS[:max_large_standard_weight])
-        )
-          @size = "Small Oversize"
-        end
-      end
+    def median(array)
+      sorted = array.sort
+      len = sorted.length
+      (sorted[(len - 1) / 2] + sorted[len / 2]) / 2.0
     end
 
   end

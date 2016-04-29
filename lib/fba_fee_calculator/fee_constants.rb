@@ -1,5 +1,14 @@
 module FbaFeeCalculator
-  module FeeCategories
+  module FeeConstants
+
+    PICK_PACK = {
+      "SML_STND" => 1.06,
+      "LRG_STND" => 1.06,
+      "SML_OVER" => 4.09,
+      "MED_OVER" => 5.20,
+      "LRG_OVER" => 8.40,
+      "SPL_OVER" => 10.53
+    }
 
     PERCENTAGE_FEES = {
       "3D Printed Products" => 12,

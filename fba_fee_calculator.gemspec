@@ -9,9 +9,10 @@ Gem::Specification.new do |spec|
   spec.authors       = ["Eric Berry"]
   spec.email         = ["eric@sellerated.com"]
 
-  spec.summary       = %q{TODO: Write a short summary, because Rubygems requires one.}
-  spec.description   = %q{TODO: Write a longer description or delete this line.}
-  spec.homepage      = "TODO: Put your gem's website or public repo URL here."
+  spec.summary       = %q{Calculates Amazon FBA Fees for Merchants}
+  spec.description   = %q{This gem can be used to calculate FBA fees for Amazon merchants. It should return similar values to: https://sellercentral.amazon.com/hz/fba/profitabilitycalculator/index}
+  spec.homepage      = "https://www.github.com/sellerated/fba_fee_calculator"
+  spec.license       = "MIT"
 
   # Prevent pushing this gem to RubyGems.org by setting 'allowed_push_host', or
   # delete this section to allow pushing this gem to any host.
@@ -26,8 +27,9 @@ Gem::Specification.new do |spec|
   spec.executables   = spec.files.grep(%r{^exe/}) { |f| File.basename(f) }
   spec.require_paths = ["lib"]
 
-  spec.add_dependency "activemodel", ">= 4.2"
+  spec.add_dependency "activemodel", "~> 4.2"
   spec.add_development_dependency "bundler", "~> 1.11"
   spec.add_development_dependency "rake", "~> 10.0"
-  spec.add_development_dependency "rspec"
+  spec.add_development_dependency "rspec", "~> 3.4"
+  spec.add_development_dependency "timecop", "~> 0.8.1"
 end
