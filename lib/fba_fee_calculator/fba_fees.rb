@@ -21,7 +21,7 @@ module FbaFeeCalculator
           return "LRG_STND"
         end
       else
-        girth_length = get_girth_length(dimensions)
+        girth_length = get_girth_and_length(dimensions)
         if [ (girth_length > 165),
              (weight > 150),
              (dimensions.max > 108) ].any?
