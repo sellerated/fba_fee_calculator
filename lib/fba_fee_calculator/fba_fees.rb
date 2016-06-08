@@ -31,7 +31,7 @@ module FbaFeeCalculator
         elsif [ (weight > 70),
                 (dimensions.max > 60),
                 (median(dimensions) <= 30) ].any?
-          reurn "MED_OVER"
+          return "MED_OVER"
         else
           return "SML_OVER"
         end
